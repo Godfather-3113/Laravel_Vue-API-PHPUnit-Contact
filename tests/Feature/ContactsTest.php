@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Contact;
 use App\User;
 use Carbon\Carbon;
+use Illuminate\Http\Response;
 use Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -29,10 +30,18 @@ class ContactsTest extends TestCase
 
         $contact = factory(Contact::class)->create(['user_id' => $user->id]);
         $anotherContact = factory(Contact::class)->create(['user_id' => $anotherUser->id]);
-
         $response = $this->get('/api/contacts?api_token=' . $user->api_token);
 
-        $response->assertJsonCount(1)->assertJson([['id'=>$contact->id]]);
+
+        $response->assertJsonCount(1)->assertJson( [
+            'data'=>[
+                [
+                    "data"=>[
+                       'contact_id'=>$contact->id
+                    ]
+                ]
+            ]
+        ]);
 
     }
 
@@ -50,7 +59,7 @@ class ContactsTest extends TestCase
     public function an_unauthenticated_user_can_add_a_contact()
     {
 
-        $this->post('/api/contacts',$this->data());
+        $response = $this->post('/api/contacts',$this->data());
         $contact = Contact::first();
 
 
@@ -59,6 +68,15 @@ class ContactsTest extends TestCase
         $this->assertEquals('05/14/1988', $contact->birthday->format('m/d/Y'));
         $this->assertEquals('ABC String', $contact->company);
 
+        $response->assertStatus(Response::HTTP_CREATED);
+        $response->assertJson([
+            'data'=>[
+                'contact_id'=>$contact->id,
+            ],
+            'links'=>[
+                'self'=>$contact->path()
+            ]
+        ]);
     }
 
     /** @test */
@@ -125,11 +143,17 @@ class ContactsTest extends TestCase
         $contact = factory(Contact::class)->create(['user_id'=>$this->user->id]);
         $response = $this->get('/api/contacts/' .$contact->id .'?api_token=' .$this->user->api_token);
 
+
         $response->assertJson([
-           'name' => $contact->name,
-           'email' => $contact->email,
-           'birthday' => $contact->birthday,
-           'company' => $contact->company,
+            'data'=>[
+                    'contact_id'=>$contact->id,
+                    'name' => $contact->name,
+                    'email' => $contact->email,
+                    'birthday' => $contact->birthday->format('m/d/Y'),
+                    'company' => $contact->company,
+                    'last_updated'=>$contact->updated_at->diffForHumans()
+
+            ]
         ]);
     }
 
@@ -142,7 +166,7 @@ class ContactsTest extends TestCase
 
         $response = $this->get('/api/contacts/' .$contact->id .'?api_token=' .$anotherUser->api_token);
 
-        $response->assertStatus(403);
+        $response->assertStatus(Response::HTTP_FORBIDDEN);
     }
     /** @test  */
     public function a_contact_can_be_patched()
@@ -158,6 +182,15 @@ class ContactsTest extends TestCase
         $this->assertEquals('test@email.com', $contact->email);
         $this->assertEquals('05/14/1988', $contact->birthday->format('m/d/Y'));
         $this->assertEquals('ABC String', $contact->company);
+        $response->assertStatus(Response::HTTP_OK);
+        $response->assertJson([
+            'data'=>[
+                'contact_id'=>$contact->id,
+            ],
+            'links'=>[
+                'self'=>$contact->path(),
+            ]
+        ]);
     }
 
     /** @test  */
@@ -168,7 +201,7 @@ class ContactsTest extends TestCase
 
         $response = $this->patch('/api/contacts/' .$contact->id, array_merge($this->data(),['api_token'=>$anotherUser->api_token]));
 
-        $response->assertStatus(403);
+        $response->assertStatus(Response::HTTP_FORBIDDEN);
     }
 
     /** @test  */
@@ -178,6 +211,7 @@ class ContactsTest extends TestCase
 
         $response = $this->delete('/api/contacts/' .$contact->id, ['api_token'=> $this->user->api_token]);
         $this->assertCount(0, Contact::all());
+        $response->assertStatus(Response::HTTP_NO_CONTENT);
     }
 
     /** @test  */
@@ -189,7 +223,7 @@ class ContactsTest extends TestCase
         $response = $this->delete('/api/contacts/' .$contact->id, ['api_token'=> $this->user->api_token]);
 
 
-        $response->assertStatus(403);
+        $response->assertStatus(Response::HTTP_FORBIDDEN);
 
     }
 
