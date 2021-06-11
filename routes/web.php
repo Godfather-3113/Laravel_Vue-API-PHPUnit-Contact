@@ -8,4 +8,8 @@ use Illuminate\Support\Facades\Route;
 
 Auth::routes();
 
+Route::get('/logout-manual', function (){
+   request()->session()->invalidate();
+});
+
 Route::get('/{slug}', 'AppController@index')->where('slug', '.*');
